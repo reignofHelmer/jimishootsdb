@@ -16,23 +16,24 @@ db.on("error", console.error.bind(console, "MongoDB connection error:"));
 db.once("open", () => console.log("Connected to MongoDB"));
 
 // Booking schema
-const bookingSchema = new mongoose.Schema({
-  date: String,
-  bookingType: String,
-  timeSlot: String,
-  customTime: String,
-  amount: Number,
-
-  customer: {
-    name: String,
-    email: String,
-    phone: String
+const bookingSchema = new mongoose.Schema(
+  {
+    date: String,
+    bookingType: String,
+    timeSlot: String,
+    customTime: String,
+    amount: Number,
+    customer: {
+      name: String,
+      email: String,
+      phone: String
+    },
+    expiresAt: Number,
+    status: { type: String, default: "held" },
+    reference: String
   },
-
-  expiresAt: Number,
-  status: { type: String, default: "held" },
-  reference: String
-});
+  { timestamps: true }
+);
 
 const Booking = mongoose.model("Booking", bookingSchema);
 
@@ -57,7 +58,7 @@ app.post("/api/bookings/hold", async (req, res) => {
   if (existing) {
     return res.status(400).json({ message: "Date already reserved" });
   }
-  
+
   const booking = new Booking({
     date,
     bookingType,
@@ -73,9 +74,15 @@ app.post("/api/bookings/hold", async (req, res) => {
   await booking.save();
   res.json({ message: "Booking held", booking });
 });
+// little divergent
+app.get("/api/bookings/all", async (req, res) => {
+  const bookings = await Booking.find().sort({ createdAt: -1 });
+  res.json(bookings);
+});
 
 // 3️⃣ Confirm booking after Paystack verification
 app.post("/api/bookings/confirm/:id", async (req, res) => {
+  console.log("BOOKING CONFIRMED:", booking);
   const { reference } = req.body;
 
   if (!reference) {
@@ -136,3 +143,17 @@ const PORT = 5000;
 app.listen(PORT, () =>
   console.log(`Server running on port ${PORT}`)
 );
+
+// ======================= ADMIN =======================
+
+app.get("/api/admin/bookings", async (req, res) => {
+  try {
+    const bookings = await Booking.find()
+      .sort({ createdAt: -1 });
+
+    res.json(bookings);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch bookings" });
+  }
+});
